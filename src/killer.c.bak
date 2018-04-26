@@ -1,0 +1,39 @@
+#define _POSIX_SOURCE
+#include <pthread.h>
+#include <unistd.h>
+#include <signal.h>
+
+#include "killer.h"
+
+//杀除进程
+int kill_pid(pid_t pid) {
+    return kill(pid, SIGKILL);
+}
+
+//超时杀除进程
+void *timeout_killer(void *timeout_killer_args) {
+    // this is a new thread, kill the process if timeout
+    //记录pid
+    pid_t pid = ((struct timeout_killer_args *)timeout_killer_args)->pid;
+    //超时时间
+    int timeout = ((struct timeout_killer_args *)timeout_killer_args)->timeout;
+    // On success, pthread_detach() returns 0; on error, it returns an error number.
+    //成功时 pthread_detach返回0 否则返回错误号
+    if (pthread_detach(pthread_self()) != 0) {
+        kill_pid(pid);
+        return NULL;
+    }
+    // usleep can't be used, for time args must < 1000ms
+    //usleep()函数的功能是把调用该函数的线程挂起一段时间
+    //usleep不可用 时间参数必然小于1000毫秒
+    // this may sleep longer that expected, but we will have a check at the end
+    //这可能比预期的睡眠时间更长，但我们将在最后进行检查。
+    if (sleep((unsigned int)((timeout + 1000) / 1000)) != 0) {
+        kill_pid(pid);
+        return NULL;
+    }
+    if (kill_pid(pid) != 0) {
+        return NULL;
+    }
+    return NULL;
+}
